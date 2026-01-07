@@ -1,0 +1,145 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+
+cbuffer Params
+{
+    float Radius; // Target radius
+    float Width; // Terrain width
+    float Height; // Terrain height
+    int SampleCount; 
+    int GridWidth; // Grid X
+    int GridHeight; // Grid Z
+    float CellSize; // Cell size in the grid
+    float3 TerrainPosition; // Terrain position offset
+    int OutputPointsLength; // Length of the OutputPoints buffer
+    int SpawnPointsLength; // Length of the SpawnPoints buffer
+}
+
+// Buffers
+StructuredBuffer<float3> SpawnPoints; // Spawn points buffer
+RWStructuredBuffer<float3> OutputPoints; // Output points buffer
+RWStructuredBuffer<int> Grid; // Grid buffer (1D representation)
+RWStructuredBuffer<float> DebugBuffer; // Debug buffer
+
+
+//float targetRadius;
+//int spawnPointLength;
+
+// Hash function for generating random values
+float Hash(float seed)
+{
+    return frac(sin(seed) * 43758.5453123);
+}
+
+// Generate random value based on a unique seed (e.g., thread ID)
+float Random(uint id, float offset)
+{
+    return Hash(id + offset);
+}
+
+float RandomFloat(uint seed)
+{
+    seed = (seed ^ 123456789) * 3624372341 + 1376312589;
+    return frac(float(seed) * 1.0e-7);
+}
+
+float2 RandomDirection(uint seed)
+{
+    float angle = RandomFloat(seed) * 6.28318530718; // 2 * PI
+    return float2(cos(angle), sin(angle));
+}
+
+bool IsValid(float3 candidate, float width, float height, float cellSize, float radius, RWStructuredBuffer<float3> points, RWStructuredBuffer<int> grid, int gridWidth, int gridHeight)
+{
+    // Ensure the candidate is within bounds
+    if (candidate.x >= 0 && candidate.x < width && candidate.z >= 0 && candidate.z < height)
+    {
+        // Compute grid cell of the candidate
+        int cellX = (int) (candidate.x / cellSize);
+        int cellZ = (int) (candidate.z / cellSize);
+
+        // Define the search range in the grid
+        int searchStartX = max(0, cellX - 2);
+        int searchEndX = min(cellX + 2, gridWidth - 1);
+        int searchStartZ = max(0, cellZ - 2);
+        int searchEndZ = min(cellZ + 2, gridHeight - 1);
+
+        // Iterate over neighboring grid cells
+        for (int x = searchStartX; x <= searchEndX; x++)
+        {
+            for (int z = searchStartZ; z <= searchEndZ; z++)
+            {
+                int gridIndex = z * gridWidth + x;
+                int pointIndex = grid[gridIndex] - 1; // Retrieve the point index (-1 means no point)
+
+                if (pointIndex != -1)
+                {
+                    float3 neighbor = points[pointIndex];
+                    float sqrDst = dot(candidate - neighbor, candidate - neighbor); // Squared distance
+                    if (sqrDst < radius * radius)
+                    {
+                        return false; // Candidate is too close to a neighbor
+                    }
+                }
+            }
+        }
+
+        return true; // Candidate is valid
+    }
+
+    return false; // Candidate is out of bounds
+}
+
+
+[numthreads(256, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if (index >= SpawnPointsLength)
+    {
+        return;
+    }
+
+    float3 spawnCenter = SpawnPoints[index];
+    for (int i = 0; i < SampleCount; i++)
+    {
+        uint seed = index * SampleCount + i;
+        float2 dir = RandomDirection(seed);
+        float distance = Radius + RandomFloat(seed) * Radius;
+        float3 candidate = spawnCenter + float3(dir.x * distance, 0, dir.y * distance);
+        candidate += TerrainPosition;
+
+        if (IsValid(candidate, Width, Height, CellSize, Radius, OutputPoints, Grid, GridWidth, GridHeight))
+        {
+            int cellX = (int)((candidate.x - TerrainPosition.x) / CellSize);
+            int cellZ = (int)((candidate.z - TerrainPosition.z) / CellSize);
+            int gridIndex = cellZ * GridWidth + cellX;
+
+            int outputIndex;
+            InterlockedAdd(Grid[gridIndex], 1, outputIndex);
+            if (outputIndex < OutputPointsLength)
+            {
+                OutputPoints[outputIndex] = candidate;
+                DebugBuffer[index] = 1.0; // Indicate that a point was generated
+            }
+            else
+            {
+                DebugBuffer[index] = 2.0; // Indicate that output buffer overflowed
+            }
+            break;
+        }
+        else
+        {
+            DebugBuffer[index] = 0.0; // Indicate that no point was generated
+        }
+    }
+
+    // Additional debug information
+    DebugBuffer[index + maxPoints] = spawnCenter.x;
+    DebugBuffer[index + 2 * maxPoints] = spawnCenter.z;
+}
+
+
+

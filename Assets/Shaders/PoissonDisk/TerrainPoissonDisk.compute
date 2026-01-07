@@ -1,0 +1,121 @@
+#pragma kernel CSMain
+
+// Input and output buffers
+struct Triangle
+{
+    float3 v0;
+    float3 v1;
+    float3 v2;
+};
+RWStructuredBuffer<float3> points; // Output points
+RWStructuredBuffer<float3> normals; // Output points
+RWStructuredBuffer<uint> counterBuffer; // Counter for valid points
+int pointBufferLength; // Max number of points
+
+float targetRadius; 
+float3 terrainSize; 
+int terrainGridSizeX;
+int terrainGridSizeZ;
+float3 terrainPosition;
+
+// Terrain heightmap texture
+Texture2D<float4> heightmap; 
+
+
+float Hash(float seed)
+{
+    return frac(sin(seed) * 43758.5453123);
+}
+
+float Random(uint id, float offset)
+{
+    return Hash(id + offset);
+}
+
+float3 ComputeNormal(float normalizedX, float normalizedZ)
+{
+    //Grid size
+    float deltaX = 1.0 / terrainGridSizeX;
+    float deltaZ = 1.0 / terrainGridSizeZ;
+
+    //Neighbors from heightmap
+    float heightU = heightmap.Load(int3(normalizedX * terrainGridSizeX, (normalizedZ + deltaZ) * terrainGridSizeZ, 0)).r;
+    float heightD = heightmap.Load(int3(normalizedX * terrainGridSizeX, (normalizedZ - deltaZ) * terrainGridSizeZ, 0)).r;
+    float heightL = heightmap.Load(int3((normalizedX - deltaX) * terrainGridSizeX, normalizedZ * terrainGridSizeZ, 0)).r;
+    float heightR = heightmap.Load(int3((normalizedX + deltaX) * terrainGridSizeX, normalizedZ * terrainGridSizeZ, 0)).r;
+
+    //Tangent
+    float3 tangentX = float3(2.0 * terrainSize.x / terrainGridSizeX, (heightR - heightL) * terrainSize.y, 0.0);
+    float3 tangentZ = float3(0.0, (heightU - heightD) * terrainSize.y, 2.0 * terrainSize.z / terrainGridSizeZ);
+
+    float3 normal = normalize(cross(tangentZ, tangentX));
+    return normal;
+}
+
+[numthreads(256, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+
+    if (index >= pointBufferLength)
+    {
+        return;
+    }
+
+    // Generate a random position in terrain grid
+    float u = Random(index, 0.1f); //X 
+    float v = Random(index, 0.2f); //Z 
+
+    float x = u * terrainGridSizeX;
+    float z = v * terrainGridSizeZ;
+
+    //Heightmap (Y)
+    float normalizedX = x / (float)terrainGridSizeX;
+    float normalizedZ = z / (float)terrainGridSizeZ;
+
+    
+    float height = heightmap.Load(int3(normalizedX * terrainGridSizeX, normalizedZ * terrainGridSizeZ, 0)).r;
+
+    //Scale to world
+    float3 newPoint = float3(
+        normalizedX * terrainSize.x,
+        height * terrainSize.y,
+        normalizedZ * terrainSize.z
+    ) + terrainPosition;
+    
+    
+
+    float3 normal = ComputeNormal(normalizedX, normalizedZ);
+    
+    float n1 = Random(index, 0.3f) * 0.1f;
+
+    float n2 = Random(index, 0.4f) * 0.1f;
+
+    float n3 = Random(index, 0.5f) * 0.1f;
+    float3 normalOffset = float3(n1, n2, n3);
+
+    
+    bool isValid = true;
+
+    for (int i = 0; i < pointBufferLength; i++)
+    {
+        if (distance(points[i], newPoint) < targetRadius)
+        {
+            isValid = false;
+            break;
+        }
+    }
+
+    if (isValid)
+    {
+        uint currentIndex;
+        InterlockedAdd(counterBuffer[0], 1, currentIndex);
+
+        if (currentIndex < pointBufferLength)
+        {
+            points[currentIndex] = newPoint; //point to output
+            normals[currentIndex] = normalize(normal + normalOffset);
+
+        }
+    }
+}

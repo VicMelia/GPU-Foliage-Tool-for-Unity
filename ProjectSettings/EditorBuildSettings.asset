@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/LoadScene.unity
+    guid: 93058e0706754b147918f439a8d73a70
+  - enabled: 1
+    path: Assets/Scenes/MainScene.unity
+    guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/Scenes/BossScene.unity
+    guid: 4e2508c0f317f4d4c8a65ba69280d153
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPUScene.unity
+    guid: 3eafeb2367d032d4cb4af3b31901455b
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPUTerrain.unity
+    guid: 780582292968e2f45853c5cc766f9339
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPUTrees.unity
+    guid: 0dafd680b87c2834e820c9ac3c482b30
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPUTrees.unity
+    guid: f30418613a73bdd4b94b240e56d34f67
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPUTerrain.unity
+    guid: acab25966383be14e93d6ebdce94168a
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPUScene.unity
+    guid: 9525d0bf2f739d848af99ed27df68777
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPU-50Trees.unity
+    guid: 75b86875a9e051f4ca2720d608cbf46c
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPU-200Trees.unity
+    guid: 91c82579915daa649a526504f2d870a3
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GPU-1000Trees.unity
+    guid: bcaabd43698e4cb498e7d9b820cf1e9c
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPU-50Trees.unity
+    guid: ea422847c5120e446b2444c2581facfd
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPU-200Trees.unity
+    guid: 4da0daa7b7777ca43a8cc84798b0ff15
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/CPU-1000Trees.unity
+    guid: c15baeb8d17461f4e8441a9d340c1d30
+  - enabled: 0
+    path: Assets/Scenes/ComputeTesting/GTerrain.unity
+    guid: 4a9333e237768544795404287cfb0105
+  m_configObjects: {}

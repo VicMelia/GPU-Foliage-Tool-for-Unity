@@ -1,0 +1,51 @@
+// Define constants
+#pragma kernel CSMain
+
+#define MAX_POINTS 1024
+
+// Input and output buffers
+StructuredBuffer<float3> InputPoints;
+RWStructuredBuffer<float3> OutputPoints;
+
+// Parameters
+cbuffer Params
+{
+    float radius;
+    float2 gridSize;
+    uint sampleCount;
+};
+
+float rand(float2 seed)
+{
+    return frac(sin(dot(seed.xy, float2(12.9898, 78.233))) * 43758.5453123);
+}
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    // Compute grid index and check bounds
+    if (id.x >= gridSize.x || id.y >= gridSize.y)
+        return;
+
+    // Initialize variables
+    uint pointIndex = id.y * uint(gridSize.x) + id.x;
+    float cellSize = radius / sqrt(2.0f);
+
+    // Generate Poisson Disk samples
+    for (uint i = 0; i < sampleCount; i++)
+    {
+        float angle = rand(id.xy) * 6.28318530718f; // Random angle
+        float dist = lerp(radius, 2 * radius, rand(id.xy));
+        float2 offset = float2(cos(angle), sin(angle)) * dist;
+
+        // Calculate sample position
+        float2 samplePos = float2(id.xy) * cellSize + offset;
+
+        // Check if sample is within bounds
+        if (samplePos.x >= 0 && samplePos.x < gridSize.x &&
+            samplePos.y >= 0 && samplePos.y < gridSize.y)
+        {
+            OutputPoints[pointIndex] = float3(samplePos.x, 0.0f, samplePos.y);
+        }
+    }
+}

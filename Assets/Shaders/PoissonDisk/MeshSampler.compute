@@ -1,0 +1,87 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+
+struct Triangle
+{
+    
+    float3 v0;
+    float3 v1;
+    float3 v2;
+    
+};
+StructuredBuffer<Triangle> triangles; //input triangles
+RWStructuredBuffer<float3> points; //output points
+RWStructuredBuffer<uint> counterBuffer; // tracks valid points
+RWStructuredBuffer<float3> normals; //normal points
+int triangleCount;
+int pointBufferLength; // maximum length of points
+
+float targetRadius;
+
+float Hash(float seed)
+{
+    return frac(sin(seed) * 43758.5453123);
+}
+
+
+float Random(uint id, float offset)
+{
+    return Hash(id + offset);
+}
+
+float Halton(int index, int base)
+{
+    float result = 0.0;
+    float f = 1.0 / base;
+    int i = index;
+    while (i > 0)
+    {
+        result += f * (i % base);
+        i = i / base;
+        f = f / base;
+    }
+    return result;
+}
+
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    
+
+    uint index = id.x;
+    if (index >= triangleCount)
+    {
+        return;
+    }
+        Triangle tri = triangles[index];
+    
+    //Generate random points
+    
+    float u = Halton(index, 2);
+    float v = Halton(index, 3);
+    
+    if (u + v > 1.0f)
+    {
+        u = 1.0f - u;
+        v = 1.0f - v;
+    }
+    
+    float w = 1.0f - u - v;
+    
+    float3 newPoint = u * tri.v0 + v * tri.v1 + w * tri.v2;
+    
+    //Normals
+    float3 normal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+    float n1 = Random(id.x, 0.3f) * 0.1f;
+    float n2 = Random(id.x, 0.4f) * 0.1f;
+    float n3 = Random(id.x, 0.5f) * 0.1f;
+    float3 normalOffset = float3(n1, n2, n3);
+    
+    points[index] = newPoint;
+    normals[index] = normal + normalOffset;
+        
+    
+}

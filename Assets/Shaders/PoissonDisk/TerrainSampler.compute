@@ -1,0 +1,113 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+
+struct Point
+{
+    float x;
+    float y;
+    float z;
+};
+
+RWStructuredBuffer<Point> outputPoints; // Output points buffer
+RWStructuredBuffer<uint> counterBuffer; // Tracks the number of valid points
+Texture2D<float> heightmap; // Terrain heightmap
+Texture2D<float4> splatmap; // Terrain splatmap
+
+float radius; // Sampling radius
+float terrainWidth;
+float terrainHeight;
+float terrainMaxHeight; // Maximum height of the terrain
+int maxPoints; // Maximum number of points
+int grassLayerIndex; // Index of the grass layer
+
+// Random number generation
+float Hash(float seed)
+{
+    return frac(sin(seed) * 43758.5453123);
+}
+
+float Random(uint id, float offset)
+{
+    return Hash(id + offset);
+}
+
+float DistanceSquared(Point a, Point b)
+{
+    float dx = a.x - b.x;
+    float dy = a.y - b.y;
+    float dz = a.z - b.z;
+    return dx * dx + dy * dy + dz * dz;
+}
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+
+    uint index = id.x;
+    if (index >= maxPoints)
+    {
+        return;
+    }
+    
+    //Generate random points
+    float u = Random(id.x, 0.1f);
+    float v = Random(id.x, 0.2f);
+    
+    //Random points to terrain coords/bounds
+    float x = u * terrainWidth;
+    float z = v * terrainHeight;
+    
+    // Convert world coordinates to texture coordinates
+    float normalizedX = x / terrainWidth;
+    float normalizedZ = z / terrainHeight;
+    
+    // Convert normalized coordinates to texture-space coordinates
+    int2 texCoordHeightmap = int2(normalizedX * terrainWidth, normalizedZ * terrainHeight);
+    int2 texCoordSplatmap = int2(normalizedX * terrainWidth, normalizedZ * terrainHeight);
+
+    // Load height from the heightmap
+    float y = heightmap.Load(int3(texCoordHeightmap, 0)).r * terrainMaxHeight;
+
+    // Load grass layer weight from the splatmap
+    float4 splatWeights = splatmap.Load(int3(texCoordSplatmap, 0));
+    float grassWeight = splatWeights[grassLayerIndex];
+    
+    //Validate point (is in grass layer)
+    if (grassWeight <= 0.5f) return;
+    
+    Point candidate = (Point) (x, y, z);
+    bool isValid = true;
+    
+    uint validPointCount;
+    InterlockedAdd(counterBuffer[0], 0, validPointCount);
+
+    
+    for (uint i = 0; i < validPointCount; i++)
+    {
+        Point p = outputPoints[i];
+        if (DistanceSquared(candidate, p) < radius * radius)
+        {
+            isValid = false;
+            break;
+        }
+
+    }
+    
+    //if valid --> point to output
+    if (isValid)
+    {
+        uint currentIndex;
+        InterlockedAdd(counterBuffer[0], 1, currentIndex);
+        
+        if (currentIndex < maxPoints)
+        {
+            outputPoints[currentIndex] = candidate;
+        }
+    }
+    
+    
+    
+
+}
